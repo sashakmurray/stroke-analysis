@@ -1,3 +1,8 @@
+if (!require("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+
+BiocManager::install("DESeq2")
+library(DESeq2)
 # list.files("data") - if returns character(0), check and set the correct path to working directory
 # Read and convert the unfiltered_gene_counts.tsv into a dataframe
 unfiltered_data <- data.frame(read.delim("data/unfiltered_gene_counts.tsv",sep="\t"))
@@ -8,6 +13,26 @@ unfiltered_data[,1] <- NULL
 any(is.na(unfiltered_data)) # returns false - no NA values in unfiltered_data
 # Save the original column names
 original_colnames <- colnames(unfiltered_data)
+
+integer_data <- data.frame(lapply(unfiltered_data, as.integer)) # convert gene counts to integers
+head(integer_data)
+
+# use annotations file to get metadata for analysis of gene counts
+metaData <- read.csv('data/annotations.tsv', header = TRUE, sep = "\t")
+rownames(metaData) <- metaData[,1]
+metaData[,1] <- NULL
+head(metaData)
+
+
+# using DESeq2 to generate size factors
+dds <- DESeqDataSetFromMatrix(countData = integer_data, colData = metaData, tidy = FALSE, design = ~1)
+dds <- estimateSizeFactors(dds)
+normalized_counts <- counts(dds, normalized=TRUE)
+# write normalized data to csv
+write.table(normalized_counts, file="data/normalized_counts.csv", sep=",")
+
+
+# manually calculating
 
 # Normalize data by geometric mean, handling zero counts appropriately
 normalized_data <- t(apply(unfiltered_data, 1, function(x) {
