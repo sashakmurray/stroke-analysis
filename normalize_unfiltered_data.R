@@ -2,74 +2,70 @@ if (!require("BiocManager", quietly = TRUE))
   install.packages("BiocManager")
 
 BiocManager::install("DESeq2")
+BiocManager::install("EnhancedVolcano")
+
+library(dplyr)
 library(DESeq2)
+library(EnhancedVolcano)
+
+
 # list.files("data") - if returns character(0), check and set the correct path to working directory
 # Read and convert the unfiltered_gene_counts.tsv into a dataframe
-unfiltered_data <- data.frame(read.delim("data/unfiltered_gene_counts.tsv",sep="\t"))
+unfiltered_data <- data.frame(read.delim("data/unfiltered_gene_counts.tsv",sep="\t", row.names=1))
 
-# Setting Gene_ID as the row name and delete the Gene_ID column from the df
-rownames(unfiltered_data) <- unfiltered_data[,1]
-unfiltered_data[,1] <- NULL
-any(is.na(unfiltered_data)) # returns false - no NA values in unfiltered_data
-# Save the original column names
-original_colnames <- colnames(unfiltered_data)
+# filter out lincRNAs
+rna_biotypes <- read.csv('data/rna_biotypes.csv', header = TRUE, row.names=1)
+non_lincRNA <- rownames(rna_biotypes[rna_biotypes$Biotype != "lincRNA", , drop = FALSE])
+counts_without_lincRNA <- unfiltered_data[rownames(unfiltered_data) %in% non_lincRNA,]
 
-integer_data <- data.frame(lapply(unfiltered_data, as.integer)) # convert gene counts to integers
+#Remove genes where counts are <10 across all samples
+filtered_counts <- counts_without_lincRNA[rowSums(counts_without_lincRNA >= 10) > 0, ]
+
+average_counts <- rowMeans(filtered_counts)
+cutoff <- quantile(average_counts, 0.15)
+filtered_counts <- filtered_counts[average_counts > cutoff, ]
+
+# convert gene counts to integers
+integer_data <- round(unfiltered_data)
 head(integer_data)
 
 # use annotations file to get metadata for analysis of gene counts
-metaData <- read.csv('data/annotations.tsv', header = TRUE, sep = "\t")
-rownames(metaData) <- metaData[,1]
-metaData[,1] <- NULL
+metaData <- read.csv('data/annotations.tsv', header = TRUE, sep = "\t", row.names=1)
 head(metaData)
+
+metaData$Sex <- as.factor(metaData$Sex)
+
 
 
 # using DESeq2 to generate size factors
-dds <- DESeqDataSetFromMatrix(countData = integer_data, colData = metaData, tidy = FALSE, design = ~1)
+dds <- DESeqDataSetFromMatrix(countData = integer_data, colData = metaData, tidy = FALSE, design = ~Sex)
 dds <- estimateSizeFactors(dds)
 normalized_counts <- counts(dds, normalized=TRUE)
 # write normalized data to csv
 write.table(normalized_counts, file="data/normalized_counts.csv", sep=",")
 
+# run DESeq analysis
+analysis <- DESeq(dds)
 
-# manually calculating
+# Extract results for Male vs. Female comparison
+res <- results(analysis, contrast = c("Sex", "0", "1"))
 
-# Normalize data by geometric mean, handling zero counts appropriately
-normalized_data <- t(apply(unfiltered_data, 1, function(x) {
-  # Check if all values are zero
-  if (all(x == 0)) {
-    return(rep(0, length(x)))  # Return 0 for this row if all are zero
-  }
-  
-  # Calculate the geometric mean for positive values only
-  positive_values <- x[x > 0]
-  
-  # If there are no positive values, return 0 (or any value you deem appropriate)
-  if (length(positive_values) == 0) {
-    return(rep(0, length(x)))  # Return 0 if no positive values exist
-  }
-  
-  # Calculate the geometric mean of positive values
-  gm <- exp(mean(log(positive_values), na.rm = TRUE))
-  
-  # Normalize the row by the geometric mean
-  return(x / gm)  # Normalize the row
-}))
+# Convert the DESeq2 results to a dataframe
+res_df <- as.data.frame(res)
+res_df$Gene <- rownames(res_df)
 
-# Assign the original column names back to normalized_data
-colnames(normalized_data) <- original_colnames
-
-# Check for NA values in normalized_data
-any(is.na(normalized_data))  # return FALSE now - no NA present
-
-# Calculate the size factor for each sample as the median of ratios
-normalization_factors <- apply(normalized_data, 2, median)
-print(normalization_factors) # all zeros, maybe because there are too many 0 gene counts present?
-
-# The below code lead to some NA values in normalized_data
-# # Normalize the gene counts by dividing each element of a row by the geometric mean
-# normalized_data <- t(apply(unfiltered_data, 1, function(x) {
-#   gm <- exp(mean(log(x[x > 0])))  # Calculate geometric mean for positive values
-#   x / gm  # Normalize by geometric mean
-# }))
-# any(is.na(normalized_data)) # returns true - NA present in normalized_data
+# Create the volcano plot using EnhancedVolcano
+EnhancedVolcano(res,
+                lab = rownames(res),  # Labels for the genes
+                x = 'log2FoldChange',  # Column for x-axis
+                y = 'padj',            # Column for y-axis (adjusted p-value)
+                xlab = 'Log2 Fold Change',
+                ylab = '-Log10 Adjusted p-value',
+                title = 'Volcano Plot of DEGs between Male and Female',
+                pCutoff = 0.05,       # Significance cutoff
+                FCcutoff = 0,         # Fold change cutoff
+                pointSize = 3.0,      # Size of points
+                labSize = 3.0,        # Size of labels
+                gridlines.major = FALSE, # Disable major gridlines
+                gridlines.minor = FALSE  # Disable minor gridlines
+)
