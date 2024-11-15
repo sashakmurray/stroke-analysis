@@ -49,6 +49,10 @@ analysis <- DESeq(dds)
 
 # Extract results for Male vs. Female comparison
 res <- results(analysis, contrast = c("Sex", "0", "1"))
+# these are Log fold change shrinkage results
+# removes the noise associated with log2 fold changes from 
+# low count genes without requiring arbitrary filtering thresholds.
+resLFC <- lfcShrink(analysis, coef="Sex_1_vs_0", type="ashr")
 
 # Convert the DESeq2 results to a dataframe
 res_df <- as.data.frame(res)
@@ -69,3 +73,12 @@ EnhancedVolcano(res,
                 gridlines.major = FALSE, # Disable major gridlines
                 gridlines.minor = FALSE  # Disable minor gridlines
 )
+
+
+# MA-plot shows the log2 fold changes attributable to a given 
+#variable over the mean of normalized counts for all the samples
+plotMA(res, ylim=c(-7, 7))
+# using the shrunken log2 fold changes for our plot
+plotMA(resLFC, ylim=c(-6, 6))
+
+
