@@ -3,14 +3,23 @@ if (!require("BiocManager", quietly = TRUE))
 
 BiocManager::install("DESeq2")
 BiocManager::install("EnhancedVolcano")
+<<<<<<< HEAD
 BiocManager::install("pheatmap")
 BiocManager::install("vsn")
+=======
+install.packages("pheatmap")
+
+>>>>>>> de05f3b84321b894ef7504268b865436d2d54261
 
 library(dplyr)
 library(DESeq2)
 library(EnhancedVolcano)
+<<<<<<< HEAD
 library(pheatmap)
 library("vsn")
+=======
+library("pheatmap")
+>>>>>>> de05f3b84321b894ef7504268b865436d2d54261
 
 
 # list.files("data") - if returns character(0), check and set the correct path to working directory
@@ -88,8 +97,14 @@ plotMA(res_sex, ylim=c(-10, 25))
 # using the shrunken log2 fold changes for our plot
 plotMA(resLFC_sex, ylim=c(-24, 6))
 
+<<<<<<< HEAD
 # Exclude rows where 'padj' is NA, then filter for significant genes
 significant_genes <- rownames(res_sex[!is.na(res_sex$padj) & res_sex$padj < 0.05 & abs(res_sex$log2FoldChange) > 1, ])
+=======
+#heatmap of most significant gene counts
+significant <- rownames(na.omit(res)[na.omit(res)$padj <= 0.0005,])
+pheatmap(normalized_counts[rownames(normalized_counts) %in% significant,])
+>>>>>>> de05f3b84321b894ef7504268b865436d2d54261
 
 # Transform the filtered count data for visualization 
 vsd <- vst(dds, blind=FALSE)
