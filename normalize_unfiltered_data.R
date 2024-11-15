@@ -3,10 +3,14 @@ if (!require("BiocManager", quietly = TRUE))
 
 BiocManager::install("DESeq2")
 BiocManager::install("EnhancedVolcano")
+BiocManager::install("pheatmap")
+BiocManager::install("vsn")
 
 library(dplyr)
 library(DESeq2)
 library(EnhancedVolcano)
+library(pheatmap)
+library("vsn")
 
 
 # list.files("data") - if returns character(0), check and set the correct path to working directory
@@ -26,7 +30,7 @@ cutoff <- quantile(average_counts, 0.15)
 filtered_counts <- filtered_counts[average_counts > cutoff, ]
 
 # convert gene counts to integers
-integer_data <- round(unfiltered_data)
+integer_data <- round(filtered_counts)
 head(integer_data)
 
 # use annotations file to get metadata for analysis of gene counts
@@ -36,10 +40,11 @@ head(metaData)
 metaData$Sex <- as.factor(metaData$Sex)
 
 
-
 # using DESeq2 to generate size factors
 dds <- DESeqDataSetFromMatrix(countData = integer_data, colData = metaData, tidy = FALSE, design = ~Sex)
 dds <- estimateSizeFactors(dds)
+colData(dds)
+
 normalized_counts <- counts(dds, normalized=TRUE)
 # write normalized data to csv
 write.table(normalized_counts, file="data/normalized_counts.csv", sep=",")
@@ -48,22 +53,21 @@ write.table(normalized_counts, file="data/normalized_counts.csv", sep=",")
 analysis <- DESeq(dds)
 
 # Extract results for Male vs. Female comparison
-res <- results(analysis, contrast = c("Sex", "0", "1"))
-# Add significance for visualization
-res$significance <- ifelse(res$padj < 0.05 & abs(res$log2FoldChange) > 1, "Significant", "Not Significant")
+res_sex <- results(analysis, contrast = c("Sex", "0", "1"))
 
 # these are Log fold change shrinkage results
 # removes the noise associated with log2 fold changes from 
 # low count genes without requiring arbitrary filtering thresholds.
-resLFC <- lfcShrink(analysis, coef="Sex_1_vs_0", type="ashr")
+resLFC_sex <- lfcShrink(analysis, coef="Sex_1_vs_0", type="ashr")
 
 # Convert the DESeq2 results to a dataframe
-res_df <- as.data.frame(res)
-res_df$Gene <- rownames(res_df)
+res_sex_df <- as.data.frame(res_sex)
+res_sex_df$Gene <- rownames(res_sex_df)
 
+# Creating visualizations below
 # Create the volcano plot using EnhancedVolcano
-EnhancedVolcano(res,
-                lab = rownames(res),  # Labels for the genes
+EnhancedVolcano(res_sex,
+                lab = rownames(res_sex),  # Labels for the genes
                 x = 'log2FoldChange',  # Column for x-axis
                 y = 'padj',            # Column for y-axis (adjusted p-value)
                 xlab = 'Log2 Fold Change',
@@ -80,8 +84,51 @@ EnhancedVolcano(res,
 
 # MA-plot shows the log2 fold changes attributable to a given 
 #variable over the mean of normalized counts for all the samples
-plotMA(res, ylim=c(-7, 7))
+plotMA(res_sex, ylim=c(-10, 25))
 # using the shrunken log2 fold changes for our plot
-plotMA(resLFC, ylim=c(-6, 6))
+plotMA(resLFC_sex, ylim=c(-24, 6))
 
+# Exclude rows where 'padj' is NA, then filter for significant genes
+significant_genes <- rownames(res_sex[!is.na(res_sex$padj) & res_sex$padj < 0.05 & abs(res_sex$log2FoldChange) > 1, ])
 
+# Transform the filtered count data for visualization 
+vsd <- vst(dds, blind=FALSE)
+transformed_vst <- assay(vsd)[significant_genes, ]
+head(transformed_vst, 3)
+meanSdPlot(assay(vsd))
+
+# Another type of transformation: log2(n + 1)
+ntd <- normTransform(dds)
+transformed_ntd <- assay(ntd)[significant_genes, ]
+meanSdPlot(transformed_ntd)
+
+# Compute row-wise z-scores
+z_scores_vst <- t(scale(t(transformed_vst)))
+z_scores_ntd <- t(scale(t(transformed_ntd)))
+
+# Remove rows with NA values (e.g., genes with zero variance)
+z_scores_vst <- z_scores_vst[complete.cases(z_scores_vst), ]
+z_scores_ntd <- z_scores_ntd[complete.cases(z_scores_ntd), ]
+
+# Creating heatmaps of the transformed data
+# Create annotation for samples
+annotate_sex <- as.data.frame(colData(dds)[, "Sex", drop=FALSE])
+rownames(annotate_sex) <- colnames(z_scores_vst)  # Ensure alignment
+
+pheatmap(z_scores_vst, 
+         cluster_rows=TRUE, 
+         show_rownames=TRUE,
+         cluster_cols=FALSE,
+         annotation_col=annotate_sex,
+         main = "Heatmap of Significant Genes (FDR < 0.05)")
+
+pheatmap(z_scores_ntd,
+         cluster_rows=TRUE, 
+         show_rownames=TRUE,
+         cluster_cols=FALSE,
+         annotation_col=annotate_sex,
+         main = "Heatmap of Significant Genes (FDR < 0.05)")
+
+# TODO: label gene names to actual names in plots
+# TODO: weighted gene correlation network
+# TODO: box-plot / violin plot for individual genes
