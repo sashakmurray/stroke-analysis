@@ -49,6 +49,9 @@ analysis <- DESeq(dds)
 
 # Extract results for Male vs. Female comparison
 res <- results(analysis, contrast = c("Sex", "0", "1"))
+# Add significance for visualization
+res$significance <- ifelse(res$padj < 0.05 & abs(res$log2FoldChange) > 1, "Significant", "Not Significant")
+
 # these are Log fold change shrinkage results
 # removes the noise associated with log2 fold changes from 
 # low count genes without requiring arbitrary filtering thresholds.
