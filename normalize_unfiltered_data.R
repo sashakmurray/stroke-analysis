@@ -3,10 +3,13 @@ if (!require("BiocManager", quietly = TRUE))
 
 BiocManager::install("DESeq2")
 BiocManager::install("EnhancedVolcano")
+install.packages("pheatmap")
+
 
 library(dplyr)
 library(DESeq2)
 library(EnhancedVolcano)
+library("pheatmap")
 
 
 # list.files("data") - if returns character(0), check and set the correct path to working directory
@@ -81,4 +84,7 @@ plotMA(res, ylim=c(-7, 7))
 # using the shrunken log2 fold changes for our plot
 plotMA(resLFC, ylim=c(-6, 6))
 
+#heatmap of most significant gene counts
+significant <- rownames(na.omit(res)[na.omit(res)$padj <= 0.0005,])
+pheatmap(normalized_counts[rownames(normalized_counts) %in% significant,])
 
