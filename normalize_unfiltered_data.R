@@ -1,11 +1,3 @@
-if (!require("BiocManager", quietly = TRUE))
-  install.packages("BiocManager")
-
-BiocManager::install("DESeq2")
-BiocManager::install("EnhancedVolcano")
-BiocManager::install("pheatmap")
-BiocManager::install("vsn")
-
 library(dplyr)
 library(DESeq2)
 library(EnhancedVolcano)
@@ -75,10 +67,10 @@ EnhancedVolcano(res_sex,
                 y = 'padj',            # Column for y-axis (adjusted p-value)
                 xlab = 'Log2 Fold Change',
                 ylab = '-Log10 Adjusted p-value',
-                title = 'Volcano Plot of DEGs between Male and Female',
+                title = 'Volcano Plot of Differential Expression Genes',
                 pCutoff = 0.05,       # Significance cutoff
                 FCcutoff = 0,         # Fold change cutoff
-                pointSize = 3.0,      # Size of points
+                pointSize = 2.5,      # Size of points
                 labSize = 3.0,        # Size of labels
                 gridlines.major = FALSE, # Disable major gridlines
                 gridlines.minor = FALSE  # Disable minor gridlines
@@ -135,7 +127,6 @@ z_scores_ntd <- as.data.frame(z_scores_ntd)
 z_scores_ntd$Gene <- rownames(z_scores_ntd)
 z_scores_ntd <- merge(z_scores_ntd, rna_biotypes, by.x = "Gene", by.y = "Gene", all.x = TRUE)
 rownames(annotate_sex) == colnames(z_scores_ntd)[!colnames(z_scores_ntd) %in% c("Gene", "Biotype")]  # Ensure alignment
-plot(1:10, 1:10)
 
 pheatmap(z_scores_ntd[!colnames(z_scores_ntd) %in% c("Gene", "Biotype")],
          cluster_rows=TRUE, 
@@ -147,4 +138,4 @@ pheatmap(z_scores_ntd[!colnames(z_scores_ntd) %in% c("Gene", "Biotype")],
 
 # TODO: weighted gene correlation network
 # TODO: box-plot / violin plot for individual genes
-
+# TODO: visualizations for demographics
