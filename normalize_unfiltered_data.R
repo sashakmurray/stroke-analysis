@@ -60,7 +60,7 @@ rna_biotypes$Gene <- rownames(rna_biotypes)
 res_sex_df <- merge(res_sex_df, rna_biotypes, by.x = "Gene", by.y = "Gene", all.x = TRUE)
 
 # Creating visualizations below
-# Create the volcano plot using EnhancedVolcano
+# Create the volcano plot using EnhancedVolcano: width = 790, height = 625
 EnhancedVolcano(res_sex,
                 lab = res_sex_df$Biotype,  # Labels for the genes
                 x = 'log2FoldChange',  # Column for x-axis
