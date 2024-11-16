@@ -3,23 +3,14 @@ if (!require("BiocManager", quietly = TRUE))
 
 BiocManager::install("DESeq2")
 BiocManager::install("EnhancedVolcano")
-<<<<<<< HEAD
 BiocManager::install("pheatmap")
 BiocManager::install("vsn")
-=======
-install.packages("pheatmap")
-
->>>>>>> de05f3b84321b894ef7504268b865436d2d54261
 
 library(dplyr)
 library(DESeq2)
 library(EnhancedVolcano)
-<<<<<<< HEAD
 library(pheatmap)
-library("vsn")
-=======
-library("pheatmap")
->>>>>>> de05f3b84321b894ef7504268b865436d2d54261
+library(vsn)
 
 
 # list.files("data") - if returns character(0), check and set the correct path to working directory
@@ -72,11 +63,14 @@ resLFC_sex <- lfcShrink(analysis, coef="Sex_1_vs_0", type="ashr")
 # Convert the DESeq2 results to a dataframe
 res_sex_df <- as.data.frame(res_sex)
 res_sex_df$Gene <- rownames(res_sex_df)
+rna_biotypes$Gene <- rownames(rna_biotypes)
+# Merge the data frames based on Gene and Name
+res_sex_df <- merge(res_sex_df, rna_biotypes, by.x = "Gene", by.y = "Gene", all.x = TRUE)
 
 # Creating visualizations below
 # Create the volcano plot using EnhancedVolcano
 EnhancedVolcano(res_sex,
-                lab = rownames(res_sex),  # Labels for the genes
+                lab = res_sex_df$Biotype,  # Labels for the genes
                 x = 'log2FoldChange',  # Column for x-axis
                 y = 'padj',            # Column for y-axis (adjusted p-value)
                 xlab = 'Log2 Fold Change',
@@ -93,57 +87,64 @@ EnhancedVolcano(res_sex,
 
 # MA-plot shows the log2 fold changes attributable to a given 
 #variable over the mean of normalized counts for all the samples
-plotMA(res_sex, ylim=c(-10, 25))
+plotMA(res_sex, 
+       ylim=c(-10, 25))
 # using the shrunken log2 fold changes for our plot
-plotMA(resLFC_sex, ylim=c(-24, 6))
+plotMA(resLFC_sex, 
+       ylim=c(-24, 6))
 
-<<<<<<< HEAD
+# Define color mapping for annotations
+annotation_colors <- list(Sex = c("0" = "#11D6E6", "1" = "#F25E52"))
+# Create annotation for samples
+annotate_sex <- as.data.frame(colData(dds)[, "Sex", drop=FALSE])
+
 # Exclude rows where 'padj' is NA, then filter for significant genes
 significant_genes <- rownames(res_sex[!is.na(res_sex$padj) & res_sex$padj < 0.05 & abs(res_sex$log2FoldChange) > 1, ])
-=======
-#heatmap of most significant gene counts
-significant <- rownames(na.omit(res)[na.omit(res)$padj <= 0.0005,])
-pheatmap(normalized_counts[rownames(normalized_counts) %in% significant,])
->>>>>>> de05f3b84321b894ef7504268b865436d2d54261
 
 # Transform the filtered count data for visualization 
 vsd <- vst(dds, blind=FALSE)
 transformed_vst <- assay(vsd)[significant_genes, ]
 head(transformed_vst, 3)
 meanSdPlot(assay(vsd))
+# Compute row-wise z-scores
+z_scores_vst <- t(scale(t(transformed_vst)))
+# Remove rows with NA values (e.g., genes with zero variance)
+z_scores_vst <- z_scores_vst[complete.cases(z_scores_vst), ]
+# Creating heatmaps of the transformed data
+z_scores_vst <- as.data.frame(z_scores_vst)
+z_scores_vst$Gene <- rownames(z_scores_vst)
+z_scores_vst <- merge(z_scores_vst, rna_biotypes, by.x = "Gene", by.y = "Gene", all.x = TRUE)
+rownames(annotate_sex) == colnames(z_scores_vst)[!colnames(z_scores_vst) %in% c("Gene", "Biotype")]  # Ensure alignment
+
+# width = 885, height = 672
+pheatmap(z_scores_vst[!colnames(z_scores_vst) %in% c("Gene", "Biotype")], 
+         cluster_rows=TRUE, 
+         labels_row = z_scores_vst$Biotype,
+         cluster_cols=FALSE,
+         annotation_col=annotate_sex,
+         annotation_colors = annotation_colors,
+         main = "Heatmap of Significant Genes (FDR < 0.05)")
 
 # Another type of transformation: log2(n + 1)
 ntd <- normTransform(dds)
 transformed_ntd <- assay(ntd)[significant_genes, ]
 meanSdPlot(transformed_ntd)
-
-# Compute row-wise z-scores
-z_scores_vst <- t(scale(t(transformed_vst)))
 z_scores_ntd <- t(scale(t(transformed_ntd)))
-
-# Remove rows with NA values (e.g., genes with zero variance)
-z_scores_vst <- z_scores_vst[complete.cases(z_scores_vst), ]
 z_scores_ntd <- z_scores_ntd[complete.cases(z_scores_ntd), ]
+z_scores_ntd <- as.data.frame(z_scores_ntd)
+z_scores_ntd$Gene <- rownames(z_scores_ntd)
+z_scores_ntd <- merge(z_scores_ntd, rna_biotypes, by.x = "Gene", by.y = "Gene", all.x = TRUE)
+rownames(annotate_sex) == colnames(z_scores_ntd)[!colnames(z_scores_ntd) %in% c("Gene", "Biotype")]  # Ensure alignment
+plot(1:10, 1:10)
 
-# Creating heatmaps of the transformed data
-# Create annotation for samples
-annotate_sex <- as.data.frame(colData(dds)[, "Sex", drop=FALSE])
-rownames(annotate_sex) <- colnames(z_scores_vst)  # Ensure alignment
-
-pheatmap(z_scores_vst, 
+pheatmap(z_scores_ntd[!colnames(z_scores_ntd) %in% c("Gene", "Biotype")],
          cluster_rows=TRUE, 
-         show_rownames=TRUE,
+         labels_row = z_scores_ntd$Biotype,
          cluster_cols=FALSE,
          annotation_col=annotate_sex,
+         annotation_colors = annotation_colors,
          main = "Heatmap of Significant Genes (FDR < 0.05)")
 
-pheatmap(z_scores_ntd,
-         cluster_rows=TRUE, 
-         show_rownames=TRUE,
-         cluster_cols=FALSE,
-         annotation_col=annotate_sex,
-         main = "Heatmap of Significant Genes (FDR < 0.05)")
-
-# TODO: label gene names to actual names in plots
 # TODO: weighted gene correlation network
 # TODO: box-plot / violin plot for individual genes
+
